@@ -1,18 +1,16 @@
 /**
- * PASTE GORDON'S APPLICATION (CLIENT) ID BETWEEN THE QUOTES.
- * Until this line is changed, the phone keeps a sample book on the phone
- * and does not contact Microsoft or OneDrive.
- *
- * The ID looks like: 12345678-1234-1234-1234-123456789abc
- * It is not a password. Do not put a client secret, certificate, or password here.
+ * Public Application (client) ID for Cattle Logbook Phone.
+ * This is not a password. Do not put a client secret, certificate, or password here.
  */
-export const MICROSOFT_CLIENT_ID = "PASTE-APPLICATION-CLIENT-ID-HERE";
+export const MICROSOFT_CLIENT_ID = "f19bbd77-5a5c-4c7b-b101-325509b786f6";
 
 /**
- * Personal Microsoft accounts.
- * If sign-in later says this Microsoft account is not allowed, change this to "common".
+ * This app was registered for work accounts and personal Microsoft accounts,
+ * inside an Azure directory. That registration is found at "common".
+ * "consumers" only finds apps registered as personal accounts only.
+ * A personal Microsoft account still signs in through "common".
  */
-export const MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/consumers";
+export const MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/common";
 
 export const MICROSOFT_SCOPES = ["User.Read", "Files.ReadWrite"];
 
