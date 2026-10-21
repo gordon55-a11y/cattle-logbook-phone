@@ -139,6 +139,16 @@ function updateFindList() {
   list.innerHTML = animalRows(findAnimals(frame.params));
 }
 
+function refreshPlaceAnimals(frame) {
+  const select = frame.name === "calving"
+    ? document.querySelector('select[name="motherId"]')
+    : document.querySelector('select[name="animalId"]');
+  if (!select || (frame.name !== "calving" && frame.name !== "treatment")) return;
+  const narrowed = animalsInPlace(frame.name === "calving" ? mothers() : sortedActive(), frame.params);
+  if (!narrowed.some((animal) => animal.id === frame.params.id)) frame.params.id = "";
+  select.innerHTML = animalOptions(frame.params.id, narrowed);
+}
+
 function datalists() {
   const farmOptions = farms().map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
   const paddockOptions = paddocks().map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
@@ -241,14 +251,38 @@ function homeScreen() {
     <button type="button" class="linkish" data-action="${sendAction}" id="send-now">${sendLabel}</button>`;
 }
 
-function findScreen(params) {
-  const filter = params.filter || "all";
+function placeMenus(prefix, params) {
   const located = places();
   const farm = located.farms.includes(params.farm) ? params.farm : "";
   const paddockNames = located.paddocksFor(farm);
   const paddock = paddockNames.includes(params.paddock) ? params.paddock : "";
   params.farm = farm;
   params.paddock = paddock;
+  return {
+    farm,
+    paddock,
+    html: `<div class="find-filters">
+      <label class="field">Farm
+        <select id="${prefix}-farm" data-place="${prefix}" data-field="farm">${choiceOptions(located.farms, "All farms", farm)}</select>
+      </label>
+      <label class="field">Paddock
+        <select id="${prefix}-paddock" data-place="${prefix}" data-field="paddock">${choiceOptions(paddockNames, "All paddocks", paddock)}</select>
+      </label>
+    </div>`,
+  };
+}
+
+function animalsInPlace(list, params) {
+  const narrowed = [];
+  for (let i = 0; i < list.length; i += 1) {
+    if (matchesPlace(list[i], params.farm || "", params.paddock || "")) narrowed.push(list[i]);
+  }
+  return narrowed;
+}
+
+function findScreen(params) {
+  const filter = params.filter || "all";
+  const place = placeMenus("find", params);
   const chips = [
     ["all", "All"],
     ["cows", "Cows"],
@@ -260,14 +294,7 @@ function findScreen(params) {
   return `    <label class="field">Search
       <input id="find-q" data-field="q" type="search" enterkeyhint="search" placeholder="Tag, farm, or paddock" value="${escapeHtml(params.q || "")}" autocomplete="off">
     </label>
-    <div class="find-filters">
-      <label class="field">Farm
-        <select id="find-farm" data-field="farm">${choiceOptions(located.farms, "All farms", farm)}</select>
-      </label>
-      <label class="field">Paddock
-        <select id="find-paddock" data-field="paddock">${choiceOptions(paddockNames, "All paddocks", paddock)}</select>
-      </label>
-    </div>
+    ${place.html}
     <div class="chips">${chips}</div>
     <p class="hint">Heifers are listed with cows. Steers are listed with bulls. Calves under 300 days show as calves.</p>
     <div class="panel" id="find-list">${animalRows(findAnimals(params))}</div>`;
@@ -317,12 +344,16 @@ function formError() {
 
 function calvingScreen(params) {
   const sex = params.calfSex || "heifer";
+  const place = placeMenus("calving", params);
+  const mothersHere = animalsInPlace(mothers(), params);
+  if (params.id && !mothersHere.some((animal) => animal.id === params.id)) params.id = "";
   const chip = (value, label) =>
     `<button type="button" class="chip${sex === value ? " on" : ""}" data-chip="calfSex" data-value="${value}">${label}</button>`;
   return `<form data-form="calving">
       ${formError()}
+      ${place.html}
       <label class="field">Mother
-        <select name="motherId" required>${animalOptions(params.id, mothers())}</select>
+        <select name="motherId" required>${animalOptions(params.id, mothersHere)}</select>
       </label>
       <label class="field">Calf tag
         <input name="calfTag" data-field="calfTag" type="text" inputmode="numeric" autocomplete="off" required value="${escapeHtml(params.calfTag || "")}">
@@ -338,10 +369,14 @@ function calvingScreen(params) {
 }
 
 function treatmentScreen(params) {
+  const place = placeMenus("treatment", params);
+  const animals = animalsInPlace(sortedActive(), params);
+  if (params.id && !animals.some((animal) => animal.id === params.id)) params.id = "";
   return `<form data-form="treatment">
       ${formError()}
+      ${place.html}
       <label class="field">Animal
-        <select name="animalId" required>${animalOptions(params.id)}</select>
+        <select name="animalId" required>${animalOptions(params.id, animals)}</select>
       </label>
       <label class="field">Date
         <input name="date" type="date" required value="${escapeHtml(params.date || localToday())}">
@@ -728,15 +763,16 @@ function onInput(event) {
   if (frame.name === "find" && event.type === "input" && el.dataset?.field === "q") {
     updateFindList();
   }
-  if (frame.name === "find" && event.type === "change" && (el.id === "find-farm" || el.id === "find-paddock")) {
-    if (el.id === "find-farm") {
+  if (event.type === "change" && el.dataset?.place) {
+    if (el.dataset.field === "farm") {
       frame.params.paddock = "";
-      const paddockSelect = document.querySelector("#find-paddock");
+      const paddockSelect = document.querySelector(`#${el.dataset.place}-paddock`);
       if (paddockSelect) {
         paddockSelect.innerHTML = choiceOptions(places().paddocksFor(frame.params.farm || ""), "All paddocks", "");
       }
     }
-    updateFindList();
+    if (frame.name === "find") updateFindList();
+    else refreshPlaceAnimals(frame);
   }
   if (frame.name === "count" && el.dataset?.digits != null) showCountTotal();
   if (frame.name === "count" && (el.name === "farm" || el.name === "paddock")) {

@@ -1,5 +1,5 @@
 /* Caches the phone page only. The herd file is never cached here. */
-const CACHE = "cattle-phone-shell-v5";
+const CACHE = "cattle-phone-shell-v6";
 const SHELL = [
   "./index.html",
   "./setup.html",
