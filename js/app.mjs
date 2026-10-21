@@ -292,7 +292,7 @@ function findScreen(params) {
     .map(([value, label]) => `<button type="button" class="chip${filter === value ? " on" : ""}" data-chip="filter" data-value="${value}">${label}</button>`)
     .join("");
   return `    <label class="field">Search
-      <input id="find-q" data-field="q" type="search" enterkeyhint="search" placeholder="Tag, farm, or paddock" value="${escapeHtml(params.q || "")}" autocomplete="off">
+      <input id="find-q" data-field="q" type="search" inputmode="text" enterkeyhint="search" placeholder="Tag, farm, or paddock" value="${escapeHtml(params.q || "")}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </label>
     ${place.html}
     <div class="chips">${chips}</div>
@@ -356,7 +356,7 @@ function calvingScreen(params) {
         <select name="motherId" required>${animalOptions(params.id, mothersHere)}</select>
       </label>
       <label class="field">Calf tag
-        <input name="calfTag" data-field="calfTag" type="text" inputmode="numeric" autocomplete="off" required value="${escapeHtml(params.calfTag || "")}">
+        <input name="calfTag" data-field="calfTag" type="text" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" required value="${escapeHtml(params.calfTag || "")}">
       </label>
       <div class="field">Calf<span class="hint"></span></div>
       <div class="chips">${chip("heifer", "Heifer calf")}${chip("bull", "Bull calf")}${chip("calf", "Calf")}</div>
@@ -748,7 +748,7 @@ function onInput(event) {
   const frame = stack[stack.length - 1];
   const el = event.target;
   if (!frame || !el) return;
-  if (el.dataset?.digits != null && "value" in el) {
+  if (el.dataset?.digits != null && el.name !== "calfTag" && "value" in el) {
     const clean = digitsOnly(el.value);
     if (el.value !== clean) el.value = clean;
   }

@@ -165,7 +165,7 @@ img { display: block; }
   border-top: 1px solid var(--line);
   padding: 12px;
 }
-.tag { width: 58px; flex: 0 0 auto; font-weight: 750; font-variant-numeric: tabular-nums; }
+.tag { min-width: 58px; width: auto; flex: 0 0 auto; white-space: nowrap; font-weight: 750; font-variant-numeric: tabular-nums; }
 .meta { flex: 1; min-width: 0; }
 .meta b { display: block; font-size: 15px; }
 .chev { color: #8d978f; font-size: 20px; }
