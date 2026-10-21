@@ -64,7 +64,7 @@ img { display: block; }
 
 .ribbon, .warn, .sync {
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 12px;
   margin-bottom: 12px;
 }
 .ribbon {
@@ -104,11 +104,11 @@ img { display: block; }
   border: 1px solid var(--border);
   border-radius: 12px;
 }
-.stat { padding: 10px 12px; }
+.stat { padding: 12px; }
 .stat em { display: block; font-style: normal; color: var(--muted); font-size: 12px; font-weight: 650; }
 .stat strong { display: block; font-size: 28px; letter-spacing: -0.03em; }
 
-.actions, .stack { display: flex; flex-direction: column; gap: 8px; }
+.actions, .stack { display: flex; flex-direction: column; gap: 12px; }
 .big, .save, .ms {
   appearance: none;
   border: 0;
@@ -119,14 +119,21 @@ img { display: block; }
   background: var(--primary);
   color: white;
   text-align: left;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 12px 14px;
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.3;
 }
 .big:active, .save:active { background: var(--primary-press); }
-.big b { font-size: 16.5px; }
-.big span { font-size: 12.5px; color: rgba(255,255,255,.84); }
+.big b, .big span {
+  display: block;
+  white-space: normal;
+}
+.big b { font-size: 16.5px; line-height: 1.3; font-weight: 700; }
+.big span { margin-top: 3px; font-size: 12.5px; line-height: 1.35; color: rgba(255,255,255,.84); }
 .big.alt { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
 .big.alt span { color: var(--muted); }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -136,11 +143,19 @@ img { display: block; }
   gap: 10px;
   align-items: center;
 }
-.panel-h { justify-content: space-between; padding: 10px 12px 0; }
-.panel-h h2 { font-size: 15px; }
+.panel-h { justify-content: space-between; align-items: flex-start; padding: 12px 12px 6px; }
+.panel-h h2 { font-size: 15px; line-height: 1.3; }
+.panel > .empty-note {
+  margin: 0;
+  padding: 2px 12px 12px;
+  line-height: 1.35;
+}
 .linkish {
   appearance: none; border: 0; background: none; color: var(--primary);
-  font-weight: 700; font-size: 14px; padding: 8px 0; min-height: 44px;
+  font-weight: 700; font-size: 14px; line-height: 1.3;
+  display: inline-flex; align-items: center;
+  margin-top: 12px; padding: 10px 0; min-height: 44px;
+  white-space: normal; text-align: left;
 }
 .row {
   width: 100%;
@@ -148,7 +163,7 @@ img { display: block; }
   background: transparent;
   border: 0;
   border-top: 1px solid var(--line);
-  padding: 10px 12px;
+  padding: 12px;
 }
 .tag { width: 58px; flex: 0 0 auto; font-weight: 750; font-variant-numeric: tabular-nums; }
 .meta { flex: 1; min-width: 0; }

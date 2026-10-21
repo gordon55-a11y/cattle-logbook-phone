@@ -140,7 +140,7 @@ function recentEvents() {
     .slice()
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))
     .slice(0, 4);
-  if (!events.length) return `<p class="hint">No notes yet.</p>`;
+  if (!events.length) return `<p class="hint empty-note">No notes yet.</p>`;
   return events
     .map((event) => {
       const animal = animalById(event.cattleId);
@@ -246,7 +246,7 @@ function animalScreen(params) {
       <button type="button" class="big" data-go="treatment" data-id="${escapeHtml(animal.id)}"><b>Treatment</b><span>Log what you gave</span></button>
       <button type="button" class="big alt" data-go="movement" data-id="${escapeHtml(animal.id)}"><b>Move</b><span>Change paddock</span></button>
     </div>
-    <div class="panel" style="margin-top:12px"><div class="panel-h"><h2>Notes</h2></div>${events || `<p class="hint" style="padding:0 12px 12px">No notes on this animal.</p>`}</div>`;
+    <div class="panel" style="margin-top:12px"><div class="panel-h"><h2>Notes</h2></div>${events || `<p class="hint empty-note">No notes on this animal.</p>`}</div>`;
 }
 
 function formError() {
