@@ -181,6 +181,27 @@ img { display: block; }
 }
 textarea { min-height: 72px; resize: vertical; }
 .field { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
+.tag-line { display: flex; gap: 8px; align-items: stretch; }
+.tag-line input { flex: 1 1 auto; min-width: 0; width: auto; }
+.dash-key {
+  flex: 0 0 auto;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+.app-version {
+  margin: 18px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
 .find-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 .find-filters .field { margin: 0; }
 .find-filters select {

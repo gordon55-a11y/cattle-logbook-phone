@@ -15,6 +15,9 @@ import {
 } from "./rules.mjs";
 import { indexPlaces, matchesPlace } from "./find-filter.mjs";
 import { sampleBook } from "./sample.mjs";
+
+/** Shown on the home screen. Bump this with the service-worker cache. */
+const APP_VERSION = "8";
 import { idbStore } from "./store.mjs";
 import { createSync } from "./sync.mjs";
 
@@ -248,7 +251,8 @@ function homeScreen() {
       <div class="panel-h"><h2>Latest notes</h2></div>
       ${recentEvents()}
     </div>
-    <button type="button" class="linkish" data-action="${sendAction}" id="send-now">${sendLabel}</button>`;
+    <button type="button" class="linkish" data-action="${sendAction}" id="send-now">${sendLabel}</button>
+    <p class="app-version">Version ${APP_VERSION}</p>`;
 }
 
 function placeMenus(prefix, params) {
@@ -356,7 +360,10 @@ function calvingScreen(params) {
         <select name="motherId" required>${animalOptions(params.id, mothersHere)}</select>
       </label>
       <label class="field">Calf tag
-        <input name="calfTag" data-field="calfTag" type="text" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" required value="${escapeHtml(params.calfTag || "")}">
+        <span class="tag-line">
+          <input id="calf-tag" name="calfTag" data-field="calfTag" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" required value="${escapeHtml(params.calfTag || "")}">
+          <button type="button" class="dash-key" data-dash aria-label="Type a dash">–</button>
+        </span>
       </label>
       <div class="field">Calf<span class="hint"></span></div>
       <div class="chips">${chip("heifer", "Heifer calf")}${chip("bull", "Bull calf")}${chip("calf", "Calf")}</div>
@@ -657,6 +664,26 @@ async function onSubmit(event) {
 }
 
 function onClick(event) {
+  const dash = event.target.closest("[data-dash]");
+  if (dash) {
+    event.preventDefault();
+    const input = document.querySelector("#calf-tag");
+    if (!input) return;
+    const value = String(input.value || "");
+    const focused = document.activeElement === input;
+    const at = focused && Number.isInteger(input.selectionStart) ? input.selectionStart : value.length;
+    const to = focused && Number.isInteger(input.selectionEnd) ? input.selectionEnd : value.length;
+    input.value = `${value.slice(0, at)}-${value.slice(to)}`;
+    const caret = at + 1;
+    input.focus();
+    try {
+      input.setSelectionRange(caret, caret);
+    } catch {
+      /* The phone keypad can refuse a caret until it is open. */
+    }
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
   const chip = event.target.closest("[data-chip]");
   if (chip) {
     const frame = stack[stack.length - 1];
@@ -892,7 +919,9 @@ document.querySelector("#main").addEventListener("click", async (event) => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((registration) => {
+    registration.update().catch(() => {});
+  }).catch(() => {});
 }
 
 boot();
