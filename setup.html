@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f3d2b">
+  <title>Cattle Logbook setup</title>
+  <link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+  <article class="setup">
+    <p><a href="./index.html">Back to the logbook</a></p>
+    <h1>Set up the phone once</h1>
+    <p>Do these steps once. After that, open the green Cattle icon. The phone writes only to a practice copy. It does not open the book the computer uses.</p>
+
+    <h2>1. A public page for the icon</h2>
+    <p>The cattle program on the computer stays in the private repository. A free website cannot be published from that private repository. The phone page needs its own public repository, with no herd file in it.</p>
+    <ol>
+      <li>Sign in to GitHub as gordon55-a11y.</li>
+      <li>Create a new repository named <b>cattle-logbook-phone</b>.</li>
+      <li>Set it to <b>Public</b>. Leave it empty: no README, no licence file.</li>
+      <li>Do not change the private cattle-logbook repository to public.</li>
+      <li>Reply that the empty repository exists. The phone files can then be copied into it. Only the phone page goes in. Not the computer program.</li>
+      <li>On that new repository: Settings, then Pages, then branch <b>main</b> and folder <b>/ (root)</b>. Save.</li>
+      <li>Wait until this address opens: <b>https://gordon55-a11y.github.io/cattle-logbook-phone/</b></li>
+    </ol>
+
+    <h2>2. Tell Microsoft about the phone page</h2>
+    <p>Use the same Microsoft account that owns the OneDrive folder on the cattle computer. No password is stored in the page.</p>
+    <ol>
+      <li>Open <b>https://entra.microsoft.com</b> and sign in.</li>
+      <li>Go to <b>Identity</b>, then <b>Applications</b>, then <b>App registrations</b>, then <b>New registration</b>.</li>
+      <li>Name: <b>Cattle Logbook Phone</b>.</li>
+      <li>Who can use it: <b>Personal Microsoft accounts only</b>.</li>
+      <li>Redirect URI: choose platform <b>Single-page application</b>. Do not choose Web. Paste this address, including the slash at the end:<br><b>https://gordon55-a11y.github.io/cattle-logbook-phone/</b></li>
+      <li>Press Register.</li>
+      <li>On the overview, copy the <b>Application (client) ID</b>. It looks like <b>12345678-1234-1234-1234-123456789abc</b>. That is not a password. Do not create a client secret or a certificate.</li>
+      <li>Open <b>API permissions</b>. Microsoft Graph, delegated, should already include <b>User.Read</b>. Add delegated <b>Files.ReadWrite</b>. Do not add anything with “All” in the name, and do not add an Application permission.</li>
+      <li>Open <b>Authentication</b>. The single-page redirect above should be listed. Leave the boxes for Access tokens and ID tokens unticked.</li>
+      <li>Send only that Application (client) ID. It is pasted into the phone page in place of <b>PASTE-APPLICATION-CLIENT-ID-HERE</b>.</li>
+    </ol>
+    <p>The first time the phone signs in, Microsoft shows a warning that the publisher is unverified. That is normal for a private page like this. Accept only if the name is <b>Cattle Logbook Phone</b>. The wording talks about files in OneDrive, because Microsoft has no switch for one file. The page is written to open only the practice copy: the file <b>cattle-logbook-data.json</b> inside the folder <b>Cattle Logbook/phone-practice</b>.</p>
+    <p>If sign-in says the account is not allowed, say so. One line in the page is then changed from personal accounts to “common”.</p>
+
+    <h2>3. Put the icon on the iPhone</h2>
+    <p>Use the iPhone 18 Pro. Open <b>Safari</b>, not another browser.</p>
+    <ol>
+      <li>Go to <b>https://gordon55-a11y.github.io/cattle-logbook-phone/</b></li>
+      <li>Tap Share (the square with the arrow).</li>
+      <li>Tap <b>Add to Home Screen</b>.</li>
+      <li>Name it <b>Cattle</b>. Tap Add.</li>
+      <li>After that, open the green icon. The first open needs a signal, so the phone can fetch the page and sign in.</li>
+    </ol>
+    <p>Until the Application (client) ID is in the page, the icon shows sample animals stored only on the phone. Those are not the herd, and they are not sent to OneDrive. After the ID is in the published page, notes go only to the practice folder. The book the computer uses is not opened.</p>
+    <p>If OneDrive makes a spare file next to the practice copy, leave that spare file where it is.</p>
+  </article>
+</body>
+</html>
