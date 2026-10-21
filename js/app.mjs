@@ -388,11 +388,33 @@ function countHint(params) {
   return `The book has ${named(hint.cows, "cow", "cows")} (heifers with the cows), ${named(hint.calves, "calf", "calves")}, and ${named(hint.bulls, "bull", "bulls")} (steers with the bulls) in ${farm} · ${paddock}. A count does not move animals.`;
 }
 
+function digitsOnly(value) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function wholeCount(value) {
+  const digits = digitsOnly(value);
+  if (!digits) return 0;
+  const number = Number(digits);
+  return Number.isInteger(number) && number >= 0 ? number : 0;
+}
+
+function countTotal() {
+  const frame = stack[stack.length - 1];
+  if (!frame) return 0;
+  return wholeCount(frame.params.cows) + wholeCount(frame.params.calves) + wholeCount(frame.params.bulls);
+}
+
+function showCountTotal() {
+  const totalNode = main.querySelector('[data-count="total"]');
+  if (totalNode) totalNode.textContent = String(countTotal());
+}
+
 function stepper(field, value, label) {
   return `<label class="field">${label}
       <div class="stepper">
         <button type="button" data-step="-1" data-field="${field}" aria-label="Fewer ${label}">−</button>
-        <b data-count="${field}">${value}</b>
+        <input data-digits data-count="${field}" data-field="${field}" name="${field}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="${label}" value="${value}">
         <button type="button" data-step="1" data-field="${field}" aria-label="More ${label}">+</button>
       </div>
     </label>`;
@@ -611,13 +633,14 @@ function onClick(event) {
   if (step) {
     const frame = stack[stack.length - 1];
     const field = step.dataset.field;
-    const next = Math.max(0, Number(frame.params[field] || 0) + Number(step.dataset.step));
+    const next = Math.max(0, wholeCount(frame.params[field]) + Number(step.dataset.step));
     frame.params[field] = next;
     const node = main.querySelector(`[data-count="${field}"]`);
-    if (node) node.textContent = String(next);
-    const total = ["cows", "calves", "bulls"].reduce((sum, name) => sum + Number(frame.params[name] || 0), 0);
-    const totalNode = main.querySelector('[data-count="total"]');
-    if (totalNode) totalNode.textContent = String(total);
+    if (node) {
+      if ("value" in node) node.value = String(next);
+      else node.textContent = String(next);
+    }
+    showCountTotal();
     return;
   }
   const clash = event.target.closest("[data-clash]");
@@ -690,6 +713,10 @@ function onInput(event) {
   const frame = stack[stack.length - 1];
   const el = event.target;
   if (!frame || !el) return;
+  if (el.dataset?.digits != null && "value" in el) {
+    const clean = digitsOnly(el.value);
+    if (el.value !== clean) el.value = clean;
+  }
   if (el.dataset?.field) frame.params[el.dataset.field] = el.value;
   if (el.name === "motherId" || el.name === "animalId") frame.params.id = el.value;
   if (el.name === "calfTag") frame.params.calfTag = el.value;
@@ -711,6 +738,7 @@ function onInput(event) {
     }
     updateFindList();
   }
+  if (frame.name === "count" && el.dataset?.digits != null) showCountTotal();
   if (frame.name === "count" && (el.name === "farm" || el.name === "paddock")) {
     const hint = document.querySelector("#count-hint");
     if (hint) hint.textContent = countHint(frame.params);
@@ -774,6 +802,31 @@ main.addEventListener("click", onClick);
 main.addEventListener("submit", onSubmit);
 main.addEventListener("input", onInput);
 main.addEventListener("change", onInput);
+main.addEventListener("focusin", (event) => {
+  const el = event.target;
+  if (!el || el.dataset?.digits == null || typeof el.select !== "function") return;
+  const selectAll = () => {
+    if (document.activeElement !== el) return;
+    try {
+      el.select();
+      el.setSelectionRange(0, el.value.length);
+    } catch {
+      /* Some phone browsers reject a selection until the keypad is up. */
+    }
+  };
+  selectAll();
+  setTimeout(selectAll, 0);
+  setTimeout(selectAll, 60);
+});
+main.addEventListener("focusout", (event) => {
+  const el = event.target;
+  const frame = stack[stack.length - 1];
+  if (!el || el.dataset?.digits == null || !("value" in el)) return;
+  const shown = String(wholeCount(el.value));
+  el.value = shown;
+  if (frame && el.dataset.field) frame.params[el.dataset.field] = shown;
+  if (frame?.name === "count") showCountTotal();
+});
 
 window.addEventListener("online", async () => {
   if (!sync) return;
