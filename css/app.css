@@ -181,6 +181,13 @@ img { display: block; }
 }
 textarea { min-height: 72px; resize: vertical; }
 .field { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
+.find-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.find-filters .field { margin: 0; }
+.find-filters select {
+  min-height: 52px;
+  font-size: 17px;
+  padding: 12px 14px;
+}
 .field span, .hint { font-weight: 400; }
 .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }

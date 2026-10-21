@@ -13,6 +13,7 @@ import {
   localToday,
   logbookHeadcount,
 } from "./rules.mjs";
+import { indexPlaces, matchesPlace } from "./find-filter.mjs";
 import { sampleBook } from "./sample.mjs";
 import { idbStore } from "./store.mjs";
 import { createSync } from "./sync.mjs";
@@ -55,12 +56,27 @@ function place(animal) {
   return [animal?.farm, animal?.paddock].filter(Boolean).join(" · ");
 }
 
+let sortedCacheBook = null;
+let sortedCache = null;
+let placeCacheBook = null;
+let placeCache = null;
+
 function farms() {
   return [...new Set(book().cattle.map((animal) => String(animal.farm || "").trim()).filter(Boolean))].sort();
 }
 
 function paddocks() {
   return [...new Set(book().cattle.map((animal) => String(animal.paddock || "").trim()).filter(Boolean))].sort();
+}
+
+function places() {
+  const current = view?.book;
+  if (!current) return indexPlaces([]);
+  if (current !== placeCacheBook) {
+    placeCacheBook = current;
+    placeCache = indexPlaces(activeAnimals(current));
+  }
+  return placeCache;
 }
 
 function mothers() {
@@ -73,21 +89,54 @@ function mothers() {
 }
 
 function sortedActive() {
-  return activeAnimals(book()).slice().sort(compareTags);
+  const current = view?.book;
+  if (!current) return [];
+  if (current !== sortedCacheBook) {
+    sortedCacheBook = current;
+    sortedCache = activeAnimals(current).slice().sort(compareTags);
+  }
+  return sortedCache;
 }
 
 function matchesFind(animal, params) {
-  const category = categoryOf(animal, book().events);
+  if (!matchesPlace(animal, params.farm || "", params.paddock || "")) return false;
+  const events = book().events;
+  const category = categoryOf(animal, events);
   const filter = params.filter || "all";
   if (filter === "cows" && category !== "cow" && category !== "heifer") return false;
   if (filter === "calves" && category !== "calf") return false;
   if (filter === "bulls" && category !== "bull" && category !== "steer") return false;
   const q = String(params.q || "").trim().toLowerCase();
   if (!q) return true;
-  return [animal.tag, animal.farm, animal.paddock, animal.breed, categoryLabel(animal, book().events)]
+  return [animal.tag, animal.farm, animal.paddock, animal.breed, categoryLabel(animal, events)]
     .join(" ")
     .toLowerCase()
     .includes(q);
+}
+
+function choiceOptions(names, allLabel, selected) {
+  let html = `<option value="">${allLabel}</option>`;
+  for (let i = 0; i < names.length; i += 1) {
+    const name = names[i];
+    html += `<option value="${escapeHtml(name)}"${name === selected ? " selected" : ""}>${escapeHtml(name)}</option>`;
+  }
+  return html;
+}
+
+function findAnimals(params) {
+  const animals = sortedActive();
+  const matched = [];
+  for (let i = 0; i < animals.length; i += 1) {
+    if (matchesFind(animals[i], params)) matched.push(animals[i]);
+  }
+  return matched;
+}
+
+function updateFindList() {
+  const list = document.querySelector("#find-list");
+  const frame = stack[stack.length - 1];
+  if (!list || !frame) return;
+  list.innerHTML = animalRows(findAnimals(frame.params));
 }
 
 function datalists() {
@@ -194,6 +243,12 @@ function homeScreen() {
 
 function findScreen(params) {
   const filter = params.filter || "all";
+  const located = places();
+  const farm = located.farms.includes(params.farm) ? params.farm : "";
+  const paddockNames = located.paddocksFor(farm);
+  const paddock = paddockNames.includes(params.paddock) ? params.paddock : "";
+  params.farm = farm;
+  params.paddock = paddock;
   const chips = [
     ["all", "All"],
     ["cows", "Cows"],
@@ -202,13 +257,20 @@ function findScreen(params) {
   ]
     .map(([value, label]) => `<button type="button" class="chip${filter === value ? " on" : ""}" data-chip="filter" data-value="${value}">${label}</button>`)
     .join("");
-  const list = sortedActive().filter((animal) => matchesFind(animal, params));
   return `    <label class="field">Search
       <input id="find-q" data-field="q" type="search" enterkeyhint="search" placeholder="Tag, farm, or paddock" value="${escapeHtml(params.q || "")}" autocomplete="off">
     </label>
+    <div class="find-filters">
+      <label class="field">Farm
+        <select id="find-farm" data-field="farm">${choiceOptions(located.farms, "All farms", farm)}</select>
+      </label>
+      <label class="field">Paddock
+        <select id="find-paddock" data-field="paddock">${choiceOptions(paddockNames, "All paddocks", paddock)}</select>
+      </label>
+    </div>
     <div class="chips">${chips}</div>
     <p class="hint">Heifers are listed with cows. Steers are listed with bulls. Calves under 300 days show as calves.</p>
-    <div class="panel" id="find-list">${animalRows(list)}</div>`;
+    <div class="panel" id="find-list">${animalRows(findAnimals(params))}</div>`;
 }
 
 function animalScreen(params) {
@@ -636,9 +698,18 @@ function onInput(event) {
   if (el.name === "note") frame.params.note = el.value;
   if (el.name === "farm") frame.params.farm = el.value;
   if (el.name === "paddock") frame.params.paddock = el.value;
-  if (event.type === "input" && frame.name === "find" && el.dataset?.field === "q") {
-    const list = document.querySelector("#find-list");
-    if (list) list.innerHTML = animalRows(sortedActive().filter((animal) => matchesFind(animal, frame.params)));
+  if (frame.name === "find" && event.type === "input" && el.dataset?.field === "q") {
+    updateFindList();
+  }
+  if (frame.name === "find" && event.type === "change" && (el.id === "find-farm" || el.id === "find-paddock")) {
+    if (el.id === "find-farm") {
+      frame.params.paddock = "";
+      const paddockSelect = document.querySelector("#find-paddock");
+      if (paddockSelect) {
+        paddockSelect.innerHTML = choiceOptions(places().paddocksFor(frame.params.farm || ""), "All paddocks", "");
+      }
+    }
+    updateFindList();
   }
   if (frame.name === "count" && (el.name === "farm" || el.name === "paddock")) {
     const hint = document.querySelector("#count-hint");
