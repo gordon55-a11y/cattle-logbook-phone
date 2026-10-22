@@ -17,7 +17,7 @@ import { indexPlaces, matchesPlace } from "./find-filter.mjs";
 import { sampleBook } from "./sample.mjs";
 
 /** Shown on the home screen. Bump this with the service-worker cache. */
-const APP_VERSION = "8";
+const APP_VERSION = "9";
 import { idbStore } from "./store.mjs";
 import { createSync } from "./sync.mjs";
 
@@ -361,7 +361,7 @@ function calvingScreen(params) {
       </label>
       <label class="field">Calf tag
         <span class="tag-line">
-          <input id="calf-tag" name="calfTag" data-field="calfTag" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" required value="${escapeHtml(params.calfTag || "")}">
+          <input id="calf-tag" name="calfTag" data-field="calfTag" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" required value="${escapeHtml(params.calfTag || "")}">
           <button type="button" class="dash-key" data-dash aria-label="Type a dash">–</button>
         </span>
       </label>
