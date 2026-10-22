@@ -29,19 +29,19 @@ function withholdGroups(merged, pending, remoteBook) {
 function reapplyGroup(book, group, iso) {
   const next = normalizeBook(book);
   for (const animal of group.localCattle || []) {
-    const copy = { ...clone(animal), updatedAt: iso };
+    const copy = { ...clone(animal), updatedAt: iso, source: "phone" };
     const index = next.cattle.findIndex((item) => item.id === animal.id);
     if (index >= 0) next.cattle[index] = { ...next.cattle[index], ...copy };
     else next.cattle.push(copy);
   }
   for (const event of group.localEvents || []) {
-    const copy = { ...clone(event), updatedAt: iso };
+    const copy = { ...clone(event), updatedAt: iso, source: "phone" };
     const index = next.events.findIndex((item) => item.id === event.id);
     if (index >= 0) next.events[index] = copy;
     else next.events.push(copy);
   }
   for (const count of group.localCounts || []) {
-    const copy = { ...clone(count), at: iso };
+    const copy = { ...clone(count), at: iso, source: "phone" };
     const index = next.paddockCounts.findIndex((item) => item.id === count.id);
     if (index >= 0) next.paddockCounts[index] = copy;
     else next.paddockCounts.push(copy);

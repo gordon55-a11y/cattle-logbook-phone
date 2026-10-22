@@ -17,7 +17,7 @@ import { indexPlaces, matchesPlace } from "./find-filter.mjs";
 import { sampleBook } from "./sample.mjs";
 
 /** Shown on the home screen. Bump this with the service-worker cache. */
-const APP_VERSION = "9";
+const APP_VERSION = "10";
 import { idbStore } from "./store.mjs";
 import { createSync } from "./sync.mjs";
 

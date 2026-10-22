@@ -47,6 +47,13 @@ function ok(book, summary, recordIds) {
   return { ok: true, book, summary, recordIds, ...snapshots(book, recordIds) };
 }
 
+/** Marks a record the phone just created or changed. Other records are left alone. */
+function markPhone(record, iso) {
+  record.updatedAt = iso;
+  record.source = "phone";
+  return record;
+}
+
 export function logCalving(inputBook, input, ctx) {
   const book = normalizeBook(inputBook);
   const mother = findAnimal(book, input.motherId);
@@ -69,7 +76,7 @@ export function logCalving(inputBook, input, ctx) {
   const recordIds = [calfId, eventId];
   if (sex === "heifer") {
     mother.sex = "cow";
-    mother.updatedAt = iso;
+    markPhone(mother, iso);
     recordIds.push(mother.id);
   }
   book.cattle.push({
@@ -86,6 +93,7 @@ export function logCalving(inputBook, input, ctx) {
     notes: `Calf of ${mother.tag}`,
     createdAt: iso,
     updatedAt: iso,
+    source: "phone",
   });
   book.events.push({
     id: eventId,
@@ -99,6 +107,7 @@ export function logCalving(inputBook, input, ctx) {
     calfSex,
     createdAt: iso,
     updatedAt: iso,
+    source: "phone",
   });
   return ok(book, `Calving for ${mother.tag} · calf ${calfTag}`, recordIds);
 }
@@ -123,6 +132,7 @@ export function logTreatment(inputBook, input, ctx) {
     details: [what, note].filter(Boolean).join(" · "),
     createdAt: iso,
     updatedAt: iso,
+    source: "phone",
   });
   return ok(book, `Treatment for ${animal.tag} · ${what}`, [eventId]);
 }
@@ -147,7 +157,7 @@ export function logMovement(inputBook, input, ctx) {
   const toLabel = [farm, paddock].filter(Boolean).join(" · ");
   animal.farm = farm;
   animal.paddock = paddock;
-  animal.updatedAt = iso;
+  markPhone(animal, iso);
   book.events.push({
     id: eventId,
     cattleId: animal.id,
@@ -161,6 +171,7 @@ export function logMovement(inputBook, input, ctx) {
     toPaddock: paddock,
     createdAt: iso,
     updatedAt: iso,
+    source: "phone",
   });
   return ok(book, `Move ${animal.tag} to ${toLabel}`, [animal.id, eventId]);
 }
@@ -189,6 +200,7 @@ export function logCount(inputBook, input, ctx) {
     note,
     by: "Gordon",
     at: iso,
+    source: "phone",
   });
   return ok(book, `Count ${farm} · ${paddock} · ${cows + calves + bulls}`, [countId]);
 }
