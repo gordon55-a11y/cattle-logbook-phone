@@ -1,11 +1,11 @@
 /* Caches the phone page only. The herd file is never cached here. */
-const CACHE = "cattle-phone-shell-v10";
+const CACHE = "cattle-phone-shell-v11";
 const SHELL = [
   "./index.html",
   "./setup.html",
   "./manifest.webmanifest",
-  "./css/app.css?v=10",
-  "./js/app.mjs?v=10",
+  "./css/app.css?v=11",
+  "./js/app.mjs?v=11",
   "./js/auth.mjs",
   "./js/book.mjs",
   "./js/clone.mjs",

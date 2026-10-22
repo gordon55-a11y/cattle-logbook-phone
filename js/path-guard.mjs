@@ -1,10 +1,14 @@
-/** The only file this phone may open or save. */
-export const PRACTICE_PATH = "/Cattle Logbook/phone-practice/cattle-logbook-data.json";
-
-/** The real herd file. Never requested. */
+/** The herd file the computer uses. */
 export const LIVE_PATH = "/Cattle Logbook/cattle-logbook-data.json";
 
-export const PRACTICE_FOLDER = "/Cattle Logbook/phone-practice";
+/**
+ * Practice copy. Not used while BOOK_PATH is the live file.
+ * To switch the phone back to practice, set BOOK_PATH to PRACTICE_PATH and publish again.
+ */
+export const PRACTICE_PATH = "/Cattle Logbook/phone-practice/cattle-logbook-data.json";
+
+/** The only file this phone may open or save. */
+export const BOOK_PATH = LIVE_PATH;
 
 const GRAPH_ROOT = "https://graph.microsoft.com/v1.0/me/drive/root:";
 
@@ -39,23 +43,13 @@ export function normalizeDrivePath(input) {
   return `/${parts.join("/")}`;
 }
 
-export function assertPracticeFile(input) {
+/** Accept only BOOK_PATH. Every other file, including the practice copy, is refused. */
+export function assertBookFile(input) {
   const path = normalizeDrivePath(input);
-  if (path.toLowerCase() === LIVE_PATH.toLowerCase()) {
-    throw new PracticeOnlyError("Refusing the live herd file.");
+  if (path.toLowerCase() !== BOOK_PATH.toLowerCase()) {
+    throw new PracticeOnlyError("This phone only opens the live book.");
   }
-  if (path.toLowerCase() !== PRACTICE_PATH.toLowerCase()) {
-    throw new PracticeOnlyError("This phone only opens the practice copy.");
-  }
-  return PRACTICE_PATH;
-}
-
-export function assertPracticeFolder(input) {
-  const path = normalizeDrivePath(input);
-  if (path.toLowerCase() !== PRACTICE_FOLDER.toLowerCase()) {
-    throw new PracticeOnlyError("This phone only looks in the practice folder.");
-  }
-  return PRACTICE_FOLDER;
+  return BOOK_PATH;
 }
 
 function encodePath(path) {
@@ -66,19 +60,15 @@ function encodePath(path) {
     .join("/");
 }
 
-export function practiceItemUrl() {
-  return `${GRAPH_ROOT}/${encodePath(assertPracticeFile(PRACTICE_PATH))}`;
+export function bookItemUrl() {
+  return `${GRAPH_ROOT}/${encodePath(assertBookFile(BOOK_PATH))}`;
 }
 
-export function practiceContentUrl() {
-  return `${practiceItemUrl()}:/content`;
+export function bookContentUrl() {
+  return `${bookItemUrl()}:/content`;
 }
 
-export function practiceFolderChildrenUrl() {
-  return `${GRAPH_ROOT}/${encodePath(assertPracticeFolder(PRACTICE_FOLDER))}:/children`;
-}
-
-/** Reject any Graph address that is not the practice file or the practice folder. */
+/** Reject any Graph address that is not the one herd file. */
 export function assertGraphUrl(url) {
   const decoded = (() => {
     try {
@@ -97,12 +87,8 @@ export function assertGraphUrl(url) {
   if (rest.startsWith("/")) rest = rest.slice(1);
   const pathPart = rest.split(":/")[0].split("?")[0];
   const normalized = normalizeDrivePath(`/${pathPart}`);
-  const allowed = [PRACTICE_PATH.toLowerCase(), PRACTICE_FOLDER.toLowerCase()];
-  if (!allowed.includes(normalized.toLowerCase())) {
-    throw new PracticeOnlyError("This phone only opens the practice copy.");
-  }
-  if (normalized.toLowerCase() === LIVE_PATH.toLowerCase()) {
-    throw new PracticeOnlyError("Refusing the live herd file.");
+  if (normalized.toLowerCase() !== BOOK_PATH.toLowerCase()) {
+    throw new PracticeOnlyError("This phone only opens the live book.");
   }
   return String(url);
 }

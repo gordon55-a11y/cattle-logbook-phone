@@ -2,7 +2,7 @@ import { createAuth } from "./auth.mjs";
 import { clientIdIsPlaceholder } from "./config.mjs";
 import { createGraphDrive } from "./graph.mjs";
 import { createLocalDrive } from "./local-drive.mjs";
-import { PRACTICE_PATH } from "./path-guard.mjs";
+import { BOOK_PATH } from "./path-guard.mjs";
 import {
   activeAnimals,
   categoryLabel,
@@ -15,11 +15,11 @@ import {
 } from "./rules.mjs";
 import { indexPlaces, matchesPlace } from "./find-filter.mjs";
 import { sampleBook } from "./sample.mjs";
+import { idbStore, setAsidePracticeQueue } from "./store.mjs";
+import { createSync } from "./sync.mjs";
 
 /** Shown on the home screen. Bump this with the service-worker cache. */
-const APP_VERSION = "10";
-import { idbStore } from "./store.mjs";
-import { createSync } from "./sync.mjs";
+const APP_VERSION = "11";
 
 const main = document.querySelector("#main");
 const titleEl = document.querySelector("#title");
@@ -173,7 +173,7 @@ function banner() {
   if (mode === "practice") {
     return `<p class="ribbon">Sample animals on this phone. Not your herd. Not OneDrive. <a href="./setup.html">How to connect</a></p>`;
   }
-  return `<p class="ribbon">Practice folder only. The real book is not used.</p>`;
+  return `<p class="ribbon live">Saves go to the live herd file.</p>`;
 }
 
 function warningBlock() {
@@ -190,10 +190,10 @@ function syncBlock() {
   }
   if (view.pending.length) {
     const lines = view.pending.map((item) => `<span class="pending-item">${escapeHtml(item.text)}</span>`).join("");
-    const where = mode === "practice" ? "Still on this phone" : "Still on this phone. The real book is not used.";
+    const where = mode === "practice" ? "Still on this phone" : "Still on this phone. Not sent yet.";
     return `<div class="sync"><i class="dot wait"></i><div><b>${escapeHtml(where)}</b>${lines}</div></div>`;
   }
-  const text = mode === "practice" ? "On this phone only" : "Practice copy is up to date. The real book is not used.";
+  const text = mode === "practice" ? "On this phone only" : "Live book is up to date.";
   return `<div class="sync"><i class="dot"></i><div><b>${escapeHtml(text)}</b></div></div>`;
 }
 
@@ -252,7 +252,7 @@ function homeScreen() {
       ${recentEvents()}
     </div>
     <button type="button" class="linkish" data-action="${sendAction}" id="send-now">${sendLabel}</button>
-    <p class="app-version">Version ${APP_VERSION}</p>`;
+    <p class="app-version">${mode === "practice" ? "" : `<span class="book-label">Live book</span> `}Version ${APP_VERSION}</p>`;
 }
 
 function placeMenus(prefix, params) {
@@ -494,31 +494,31 @@ function describeClash(clash) {
     const tag = clash.local?.tag || clash.remote?.tag || "Animal";
     const mine = clash.local ? place(clash.local) || "no paddock" : "removed";
     const theirs = clash.remote ? place(clash.remote) || "no paddock" : "removed";
-    return `${tag}: this phone had ${mine}. The practice copy has ${theirs}.`;
+    return `${tag}: this phone had ${mine}. The live book has ${theirs}.`;
   }
   if (clash.kind === "count") {
     const mine = clash.local ? String(clash.local.total) : "removed";
     const theirs = clash.remote ? String(clash.remote.total) : "removed";
     const where = clash.local || clash.remote || {};
-    return `${where.farm || "Count"} · ${where.paddock || ""}: this phone had ${mine}. The practice copy has ${theirs}.`;
+    return `${where.farm || "Count"} · ${where.paddock || ""}: this phone had ${mine}. The live book has ${theirs}.`;
   }
   const mine = clash.local?.details || "removed";
   const theirs = clash.remote?.details || "removed";
-  return `This phone had “${mine}”. The practice copy has “${theirs}”.`;
+  return `This phone had “${mine}”. The live book has “${theirs}”.`;
 }
 
 function clashScreen() {
   if (!view.clashes.length) {
-    return `${banner()}<p class="hint">Nothing is waiting. The practice copy kept the other version.</p>`;
+    return `${banner()}<p class="hint">Nothing is waiting. The live book kept the other version.</p>`;
   }
   const cards = view.clashes
     .map((group) => {
       const lines = (group.clashes || []).map((clash) => `<div class="side"><em>Both changed</em><b>${escapeHtml(describeClash(clash))}</b></div>`).join("");
       return `<article class="clash">
         <h2>${escapeHtml(group.text || "A note")}</h2>
-        <p class="hint">The practice copy kept its version. Yours is still on this phone until you choose.</p>
+        <p class="hint">The live book kept its version. Yours is still on this phone until you choose.</p>
         ${lines}
-        <button type="button" class="save" data-clash="keep" data-id="${escapeHtml(group.id)}" style="margin-top:10px">Put my version in the practice copy</button>
+        <button type="button" class="save" data-clash="keep" data-id="${escapeHtml(group.id)}" style="margin-top:10px">Put my version in the live book</button>
         <button type="button" class="save ghost" data-clash="drop" data-id="${escapeHtml(group.id)}">Drop my version</button>
       </article>`;
     })
@@ -530,7 +530,7 @@ function signinScreen() {
   return `<div class="signin">
       <img src="./icons/icon-192.png" alt="">
       <h2>Cattle Logbook</h2>
-      <p>Sign in with the same Microsoft account as the cattle computer. The phone uses the practice copy only.</p>
+      <p>Sign in with the same Microsoft account as the cattle computer. The phone uses the live herd file only.</p>
       <button type="button" class="ms" id="sign-in">Sign in with Microsoft</button>
       <p class="hint" style="margin-top:16px"><a href="./setup.html">Setup steps</a></p>
     </div>`;
@@ -540,10 +540,10 @@ function paint() {
   const frame = stack[stack.length - 1] || { name: "home", params: {} };
   const name = frame.name;
   titleEl.textContent = name === "animal" ? (animalById(frame.params.id)?.tag || "Animal") : TITLES[name] || "Cattle Logbook";
-  if (name === "home") subtitleEl.textContent = mode === "practice" ? "Sample book" : "Practice copy";
+  if (name === "home") subtitleEl.textContent = mode === "practice" ? "Sample book" : "Live book";
   else if (name === "animal") subtitleEl.textContent = place(animalById(frame.params.id)) || "Animal";
   else if (name === "signin") subtitleEl.textContent = "Microsoft";
-  else subtitleEl.textContent = mode === "practice" ? "Sample book" : "Practice copy";
+  else subtitleEl.textContent = mode === "practice" ? "Sample book" : "Live book";
   backEl.hidden = stack.length < 2;
   let html = "";
   if (name === "home") html = homeScreen();
@@ -585,9 +585,9 @@ function savedMessage(waiting) {
   if (waiting) {
     return mode === "practice"
       ? "Kept on this phone until there is signal."
-      : "Kept on this phone. It will go to the practice folder when there is signal. The real book is not used.";
+      : "Kept on this phone. It will go to the live book when there is signal.";
   }
-  return mode === "practice" ? "Saved on this phone." : "Saved to the practice folder. The real book was not touched.";
+  return mode === "practice" ? "Saved on this phone." : "Saved to the live book.";
 }
 
 function showClash() {
@@ -603,7 +603,7 @@ function afterWrite(beforeClashes, result) {
     return;
   }
   if ((result.clashes || []).length > beforeClashes) {
-    toast(mode === "practice" ? "One note needs a look. The rest is on this phone." : "One note needs a look. The rest went to the practice folder.");
+    toast(mode === "practice" ? "One note needs a look. The rest is on this phone." : "One note needs a look. The rest went to the live book.");
     showClash();
     return;
   }
@@ -764,7 +764,7 @@ async function onAction(action) {
     toast(view.pending.length ? "Still on this phone." : action === "pull" ? "Checked." : savedMessage(false));
     paint();
   } catch (error) {
-    toast(error.message || "Could not reach the practice copy.");
+    toast(error.message || "Could not reach the herd file.");
     paint();
   } finally {
     busy = false;
@@ -836,17 +836,24 @@ async function boot() {
       show("signin");
       return;
     }
+    const aside = await setAsidePracticeQueue(idbStore("cattle-phone-practice"));
     const drive = createGraphDrive({
       fetch: window.fetch.bind(window),
       getToken: () => auth.getToken(),
-      path: PRACTICE_PATH,
+      path: BOOK_PATH,
     });
     sync = createSync({
       drive,
-      store: idbStore("cattle-phone-practice"),
+      store: idbStore("cattle-phone-live"),
       online: () => navigator.onLine,
     });
     view = await sync.init();
+    if (aside.count) {
+      view = {
+        ...view,
+        warning: "Notes waiting from the practice book were kept on this phone and were not sent to the live book.",
+      };
+    }
     show("home");
   } catch (error) {
     main.dataset.screen = "error";

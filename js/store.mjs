@@ -48,3 +48,27 @@ export function idbStore(name = "cattle-phone") {
     },
   };
 }
+
+/**
+ * Notes queued against the practice file must not be sent to the live book.
+ * They stay in that older phone store, under setAside, and the queue is emptied.
+ */
+export async function setAsidePracticeQueue(store) {
+  const saved = await store.load();
+  if (!saved || typeof saved !== "object") return { count: 0, texts: [] };
+  const pending = Array.isArray(saved.pending) ? saved.pending : [];
+  const clashes = Array.isArray(saved.clashes) ? saved.clashes : [];
+  if (!pending.length && !clashes.length) return { count: 0, texts: [] };
+  const texts = pending.map((item) => String(item?.text || "A note")).filter(Boolean);
+  saved.setAside = {
+    pending,
+    clashes,
+    at: new Date().toISOString(),
+    reason: "Left on this phone when it switched to the live book. Not sent.",
+  };
+  saved.pending = [];
+  saved.clashes = [];
+  saved.etag = null;
+  await store.save(saved);
+  return { count: pending.length + clashes.length, texts };
+}

@@ -103,7 +103,7 @@ export function createSync({
         (name) => /cattle-logbook-data/i.test(name) && name !== "cattle-logbook-data.json"
       );
       if (extras.length) {
-        return "OneDrive made a spare copy of the practice book. Leave that spare file where it is.";
+        return "OneDrive made a spare copy of the herd file. Leave that spare file where it is.";
       }
     } catch (error) {
       if (error.name === "PracticeOnlyError") throw error;
@@ -114,16 +114,11 @@ export function createSync({
   async function loadFromDrive() {
     const stat = await drive.stat();
     if (stat.status === 404) {
-      const created = await drive.create(stamp(emptyBook()));
-      if (!created.ok) throw new Error("Could not create the practice book.");
-      takeSaved(created);
-      state.warning = await namesWarning();
-      await persist();
-      return;
+      throw new Error("The live book was not found. Nothing new was created.");
     }
-    if (!stat.ok) throw new Error("Could not open the practice book.");
+    if (!stat.ok) throw new Error("Could not open the herd file.");
     const got = await drive.get();
-    if (!got.ok) throw new Error("Could not read the practice book.");
+    if (!got.ok) throw new Error("Could not read the herd file.");
     takeSaved({ body: got.body, etag: got.etag || stat.etag });
     state.warning = await namesWarning();
     await persist();
@@ -145,7 +140,7 @@ export function createSync({
         state.pending = [];
         state.clashes = [];
         state.warning =
-          "No signal, and this phone does not have the practice book yet. Connect once, then the yards will work offline.";
+          "No signal, and this phone does not have the herd file yet. Connect once, then the yards will work offline.";
         await persist();
         return view();
       }
@@ -167,7 +162,7 @@ export function createSync({
       stat = await drive.stat();
     } catch (error) {
       if (error.name === "PracticeOnlyError" || error.name === "UnreadableBookError") throw error;
-      state.warning = "Could not reach the practice book. Your notes are still on this phone.";
+      state.warning = "Could not reach the herd file. Your notes are still on this phone.";
       await persist();
       return view();
     }
@@ -196,22 +191,15 @@ export function createSync({
         stat = await drive.stat();
       } catch (error) {
         if (error.name === "PracticeOnlyError") throw error;
-        state.warning = "Could not reach the practice book. Your notes are still on this phone.";
+        state.warning = "Could not reach the herd file. Your notes are still on this phone.";
         await persist();
         return view();
       }
       if (stat.status === 404) {
-        const created = await drive.create(stamp(state.local));
-        if (created.ok) {
-          takeSaved(created);
-          state.warning = await namesWarning();
-          await persist();
-          return view();
-        }
-        continue;
+        throw new Error("The live book was not found. Nothing new was created.");
       }
       if (!stat.ok) {
-        state.warning = "Could not reach the practice book. Your notes are still on this phone.";
+        state.warning = "Could not reach the herd file. Your notes are still on this phone.";
         await persist();
         return view();
       }
@@ -250,7 +238,7 @@ export function createSync({
         state.clashes = [...state.clashes, ...outcome.groups];
         const spare = await namesWarning();
         if (outcome.groups.length) {
-          state.warning = "Some notes need a look. The rest were saved to the practice copy.";
+          state.warning = "Some notes need a look. The rest were saved to the live book.";
         } else {
           state.warning = spare;
         }
@@ -262,7 +250,7 @@ export function createSync({
       await persist();
       return view();
     }
-    state.warning = "The practice book kept changing. Your notes are still on this phone. Try Send again.";
+    state.warning = "The herd file kept changing. Your notes are still on this phone. Try Send again.";
     await persist();
     return view();
   }

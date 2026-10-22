@@ -1,11 +1,10 @@
 import { clone } from "./clone.mjs";
 import {
   PracticeOnlyError,
+  assertBookFile,
   assertGraphUrl,
-  assertPracticeFile,
-  practiceContentUrl,
-  practiceFolderChildrenUrl,
-  practiceItemUrl,
+  bookContentUrl,
+  bookItemUrl,
 } from "./path-guard.mjs";
 
 export class UnreadableBookError extends Error {
@@ -18,11 +17,11 @@ export class UnreadableBookError extends Error {
 const MAX_BYTES = 3_500_000;
 
 /**
- * Microsoft Graph for the practice file only.
- * Every address is checked before fetch. The live herd file is refused.
+ * Microsoft Graph for the one herd file.
+ * Every address is checked before fetch. No other file is requested.
  */
 export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
-  assertPracticeFile(path);
+  assertBookFile(path);
   const fetchFn = fetchImpl;
 
   async function request(url, options = {}) {
@@ -48,7 +47,7 @@ export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
   function encodeBody(body) {
     const text = `${JSON.stringify(body, null, 2)}\n`;
     if (text.length > MAX_BYTES) {
-      throw new Error("The practice book is too big to save from the phone.");
+      throw new Error("The herd file is too big to save from the phone.");
     }
     return text;
   }
@@ -56,14 +55,14 @@ export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
   return {
     kind: "graph",
     async stat() {
-      const response = await request(practiceItemUrl());
+      const response = await request(bookItemUrl());
       if (response.status === 404) return { ok: false, status: 404 };
       if (!response.ok) return { ok: false, status: response.status };
       const item = await response.json();
       return { ok: true, status: 200, etag: item.eTag || item.etag || "" };
     },
     async get() {
-      const response = await request(practiceContentUrl());
+      const response = await request(bookContentUrl());
       if (response.status === 404) return { ok: false, status: 404 };
       if (!response.ok) return { ok: false, status: response.status };
       const text = await response.text();
@@ -75,12 +74,12 @@ export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
         return { ok: true, status: 200, etag: response.headers.get("ETag") || "", body };
       } catch (error) {
         if (error instanceof UnreadableBookError) throw error;
-        throw new UnreadableBookError("The practice book could not be read, so nothing was saved over it.");
+        throw new UnreadableBookError("The herd file could not be read, so nothing was saved over it.");
       }
     },
     async put(body, etag) {
       if (!etag) throw new PracticeOnlyError("Refusing to save without a version check.");
-      const response = await request(practiceContentUrl(), {
+      const response = await request(bookContentUrl(), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -98,31 +97,8 @@ export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
         body: clone(body),
       };
     },
-    async create(body) {
-      const response = await request(practiceContentUrl(), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "If-None-Match": "*",
-        },
-        body: encodeBody(body),
-      });
-      if (response.status === 412) return { ok: false, status: 412 };
-      if (!response.ok) return { ok: false, status: response.status };
-      const item = await response.json().catch(() => ({}));
-      return {
-        ok: true,
-        status: response.status,
-        etag: item.eTag || item.etag || "",
-        body: clone(body),
-      };
-    },
-    async listNames() {
-      const response = await request(practiceFolderChildrenUrl());
-      if (response.status === 404) return [];
-      if (!response.ok) return [];
-      const data = await response.json();
-      return (data.value || []).map((item) => item && item.name).filter(Boolean);
+    async create() {
+      throw new PracticeOnlyError("The live book was not found. Nothing new was created.");
     },
   };
 }

@@ -11,7 +11,7 @@
   <article class="setup">
     <p><a href="./index.html">Back to the logbook</a></p>
     <h1>Set up the phone once</h1>
-    <p>Do these steps once. After that, open the green Cattle icon. The phone writes only to a practice copy. It does not open the book the computer uses.</p>
+    <p>Do these steps once. After that, open the green Cattle icon. The phone reads and writes only the live herd file, the same book the computer uses.</p>
 
     <h2>1. A public page for the icon</h2>
     <p>The cattle program on the computer stays in the private repository. A free website cannot be published from that private repository. The phone page needs its own public repository, with no herd file in it.</p>
@@ -39,7 +39,7 @@
       <li>Open <b>Authentication</b>. The single-page redirect above should be listed. Leave the boxes for Access tokens and ID tokens unticked.</li>
       <li>Send only that Application (client) ID. It is pasted into the phone page in place of <b>PASTE-APPLICATION-CLIENT-ID-HERE</b>.</li>
     </ol>
-    <p>The first time the phone signs in, Microsoft shows a warning that the publisher is unverified. That is normal for a private page like this. Accept only if the name is <b>Cattle Logbook Phone</b>. The wording talks about files in OneDrive, because Microsoft has no switch for one file. The page is written to open only the practice copy: the file <b>cattle-logbook-data.json</b> inside the folder <b>Cattle Logbook/phone-practice</b>.</p>
+    <p>The first time the phone signs in, Microsoft shows a warning that the publisher is unverified. That is normal for a private page like this. Accept only if the name is <b>Cattle Logbook Phone</b>. The wording talks about files in OneDrive, because Microsoft has no switch for one file. The page is written to open only <b>Cattle Logbook/cattle-logbook-data.json</b>.</p>
     <p>Sign in with the personal Microsoft account that owns the OneDrive folder, not a work account from the new directory. The page uses the “common” sign-in address, because this registration allows both work accounts and personal accounts.</p>
 
     <h2>3. Put the icon on the iPhone</h2>
@@ -51,8 +51,8 @@
       <li>Name it <b>Cattle</b>. Tap Add.</li>
       <li>After that, open the green icon. The first open needs a signal, so the phone can fetch the page and sign in.</li>
     </ol>
-    <p>Notes go only to the practice folder. The book the computer uses is not opened.</p>
-    <p>If OneDrive makes a spare file next to the practice copy, leave that spare file where it is.</p>
+    <p>Notes go to the live herd file. The practice copy is not opened.</p>
+    <p>The home screen shows <b>Live book</b> next to the version number. To use the practice copy again, the page has to be published with the practice path instead.</p>
   </article>
 </body>
 </html>
