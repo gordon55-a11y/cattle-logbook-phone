@@ -1,11 +1,11 @@
 /* Caches the phone page only. The herd file is never cached here. */
-const CACHE = "cattle-phone-shell-v11";
+const CACHE = "cattle-phone-shell-v12";
 const SHELL = [
   "./index.html",
   "./setup.html",
   "./manifest.webmanifest",
-  "./css/app.css?v=11",
-  "./js/app.mjs?v=11",
+  "./css/app.css?v=12",
+  "./js/app.mjs?v=12",
   "./js/auth.mjs",
   "./js/book.mjs",
   "./js/clone.mjs",
@@ -46,6 +46,17 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+async function cachedPage(request) {
+  const hit = await caches.match(request);
+  if (hit) return hit;
+  const url = new URL(request.url);
+  if (request.mode === "navigate" || url.pathname.endsWith("/")) {
+    const index = await caches.match(new URL("index.html", url.href.endsWith("/") ? url.href : `${url.href}/`));
+    if (index) return index;
+  }
+  return null;
+}
+
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
@@ -53,7 +64,7 @@ async function networkFirst(request) {
     if (fresh && fresh.ok) await cache.put(request.url, fresh.clone());
     return fresh;
   } catch {
-    const hit = await caches.match(request);
+    const hit = await cachedPage(request);
     if (hit) return hit;
     return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } });
   }

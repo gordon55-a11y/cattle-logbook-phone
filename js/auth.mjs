@@ -53,17 +53,22 @@ export async function createAuth(clientId = MICROSOFT_CLIENT_ID) {
   const account = redirect?.account || app.getAllAccounts()[0] || null;
 
   async function getToken() {
+    // No signal: do not talk to Microsoft and do not leave the book.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return null;
     const current = account || app.getAllAccounts()[0];
     if (!current) return null;
     try {
-      const result = await app.acquireTokenSilent({ account: current, scopes: MICROSOFT_SCOPES });
-      return result.accessToken;
-    } catch (error) {
-      if (error?.name === "InteractionRequiredAuthError" || error?.errorCode === "interaction_required") {
-        await app.acquireTokenRedirect({ account: current, scopes: MICROSOFT_SCOPES });
-        return null;
-      }
-      throw error;
+      const result = await Promise.race([
+        app.acquireTokenSilent({ account: current, scopes: MICROSOFT_SCOPES }),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("timeout")), 8000);
+        }),
+      ]);
+      return result?.accessToken || null;
+    } catch {
+      // An expired token must not send the phone to the sign-in page.
+      // The book stays open. Sign-in happens only when Gordon taps the banner.
+      return null;
     }
   }
 

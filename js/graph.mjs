@@ -14,6 +14,14 @@ export class UnreadableBookError extends Error {
   }
 }
 
+export class SignInNeededError extends Error {
+  constructor() {
+    super("Sign in to send the notes saved on this phone.");
+    this.name = "SignInNeededError";
+    this.code = "auth";
+  }
+}
+
 const MAX_BYTES = 3_500_000;
 
 /**
@@ -26,12 +34,13 @@ export function createGraphDrive({ fetch: fetchImpl, getToken, path }) {
 
   async function request(url, options = {}) {
     assertGraphUrl(url);
-    const token = await getToken();
-    if (!token) {
-      const error = new Error("Sign in to Microsoft first.");
-      error.code = "auth";
-      throw error;
+    let token = null;
+    try {
+      token = await getToken();
+    } catch {
+      token = null;
     }
+    if (!token) throw new SignInNeededError();
     return fetchFn(url, {
       method: options.method || "GET",
       headers: {

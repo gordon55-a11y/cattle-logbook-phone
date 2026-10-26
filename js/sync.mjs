@@ -3,6 +3,8 @@ import { emptyBook, normalizeBook } from "./book.mjs";
 import { logCalving, logCount, logMovement, logTreatment } from "./book.mjs";
 import { mergeBook } from "./merge.mjs";
 import { createIdFactory } from "./clone.mjs";
+import { indexPlaces } from "./find-filter.mjs";
+import { activeAnimals } from "./rules.mjs";
 
 function withholdGroups(merged, pending, remoteBook) {
   const clashIds = new Set(merged.clashes.map((clash) => clash.id));
@@ -71,7 +73,15 @@ export function createSync({
     return copy;
   }
 
+  function rememberPlaces() {
+    const indexed = indexPlaces(activeAnimals(state.local || emptyBook()));
+    const byFarm = {};
+    for (const farm of indexed.farms) byFarm[farm] = indexed.paddocksFor(farm);
+    state.placeLists = { farms: indexed.farms, paddocks: indexed.paddocks, byFarm };
+  }
+
   async function persist() {
+    rememberPlaces();
     await store.save(clone(state));
   }
 
@@ -84,7 +94,18 @@ export function createSync({
       etag: state.etag,
       offline: !online(),
       ready: Boolean(state.local),
+      needsSignIn: Boolean(state.needsSignIn),
+      placeLists: clone(state.placeLists || { farms: [], paddocks: [], byFarm: {} }),
     };
+  }
+
+  function noteReachError(error) {
+    if (error?.name === "PracticeOnlyError" || error?.name === "UnreadableBookError") throw error;
+    if (error?.name === "SignInNeededError" || error?.code === "auth") {
+      state.needsSignIn = true;
+      return;
+    }
+    state.warning = "Could not reach the herd file. Your notes are still on this phone.";
   }
 
   function takeSaved(result) {
@@ -93,6 +114,7 @@ export function createSync({
     state.local = clone(book);
     state.etag = result.etag || state.etag;
     state.pending = [];
+    state.needsSignIn = false;
   }
 
   async function namesWarning() {
@@ -131,6 +153,7 @@ export function createSync({
       if (!Array.isArray(state.pending)) state.pending = [];
       if (!Array.isArray(state.clashes)) state.clashes = [];
       if (!state.warning) state.warning = "";
+      if (!state.placeLists) rememberPlaces();
     }
     if (!state.local) {
       if (!online()) {
@@ -144,12 +167,31 @@ export function createSync({
         await persist();
         return view();
       }
-      await loadFromDrive();
+      try {
+        await loadFromDrive();
+      } catch (error) {
+        if (error?.name === "PracticeOnlyError") throw error;
+        state.local = emptyBook();
+        if (error?.name === "UnreadableBookError") state.warning = error.message;
+        else if (error?.name === "SignInNeededError" || error?.code === "auth") state.needsSignIn = true;
+        else state.warning = error?.message || "Could not open the herd file.";
+        await persist();
+        return view();
+      }
       return view();
     }
+    if (!state.placeLists?.farms) {
+      rememberPlaces();
+      await persist();
+    }
     if (online()) {
-      if (state.pending.length) await flush();
-      else await pull();
+      try {
+        if (state.pending.length) await flush();
+        else await pull();
+      } catch (error) {
+        noteReachError(error);
+        await persist();
+      }
     }
     return view();
   }
@@ -161,20 +203,27 @@ export function createSync({
     try {
       stat = await drive.stat();
     } catch (error) {
-      if (error.name === "PracticeOnlyError" || error.name === "UnreadableBookError") throw error;
-      state.warning = "Could not reach the herd file. Your notes are still on this phone.";
+      noteReachError(error);
       await persist();
       return view();
     }
     if (stat.status === 404) return view();
     if (!stat.ok) return view();
     if (stat.etag === state.etag) {
+      state.needsSignIn = false;
       const spare = await namesWarning();
       if (spare) state.warning = spare;
       await persist();
       return view();
     }
-    const got = await drive.get();
+    let got;
+    try {
+      got = await drive.get();
+    } catch (error) {
+      noteReachError(error);
+      await persist();
+      return view();
+    }
     if (!got.ok) return view();
     takeSaved({ body: got.body, etag: got.etag || stat.etag });
     state.warning = await namesWarning();
@@ -190,8 +239,7 @@ export function createSync({
       try {
         stat = await drive.stat();
       } catch (error) {
-        if (error.name === "PracticeOnlyError") throw error;
-        state.warning = "Could not reach the herd file. Your notes are still on this phone.";
+        noteReachError(error);
         await persist();
         return view();
       }
@@ -204,7 +252,14 @@ export function createSync({
         return view();
       }
       if (stat.etag === state.etag) {
-        const put = await drive.put(stamp(state.local), stat.etag);
+        let put;
+        try {
+          put = await drive.put(stamp(state.local), stat.etag);
+        } catch (error) {
+          noteReachError(error);
+          await persist();
+          return view();
+        }
         if (put.ok) {
           takeSaved(put);
           state.warning = await namesWarning();
@@ -225,14 +280,23 @@ export function createSync({
           await persist();
           return view();
         }
-        throw error;
+        noteReachError(error);
+        await persist();
+        return view();
       }
       if (!got.ok) continue;
       const remoteBook = normalizeBook(got.body);
       const baseBook = state.base ? normalizeBook(state.base) : emptyBook();
       const merged = mergeBook(baseBook, state.local, remoteBook);
       const outcome = withholdGroups(merged, state.pending, remoteBook);
-      const put = await drive.put(stamp(outcome.book), got.etag);
+      let put;
+      try {
+        put = await drive.put(stamp(outcome.book), got.etag);
+      } catch (error) {
+        noteReachError(error);
+        await persist();
+        return view();
+      }
       if (put.ok) {
         takeSaved(put);
         state.clashes = [...state.clashes, ...outcome.groups];

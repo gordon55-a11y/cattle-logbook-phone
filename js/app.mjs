@@ -19,7 +19,7 @@ import { idbStore, setAsidePracticeQueue } from "./store.mjs";
 import { createSync } from "./sync.mjs";
 
 /** Shown on the home screen. Bump this with the service-worker cache. */
-const APP_VERSION = "11";
+const APP_VERSION = "12";
 
 const main = document.querySelector("#main");
 const titleEl = document.querySelector("#title");
@@ -44,6 +44,8 @@ let sync = null;
 let auth = null;
 let view = null;
 let busy = false;
+let asideNote = "";
+let signingIn = false;
 let toastTimer = 0;
 const stack = [];
 
@@ -64,22 +66,45 @@ let sortedCache = null;
 let placeCacheBook = null;
 let placeCache = null;
 
+function placesFromSnapshot(saved) {
+  const farms = Array.isArray(saved?.farms) ? saved.farms : [];
+  const paddocks = Array.isArray(saved?.paddocks) ? saved.paddocks : [];
+  const byFarm = saved?.byFarm && typeof saved.byFarm === "object" ? saved.byFarm : {};
+  return {
+    farms,
+    paddocks,
+    paddocksFor(farm) {
+      if (!farm) return paddocks;
+      const list = byFarm[farm];
+      return Array.isArray(list) ? list : [];
+    },
+  };
+}
+
 function farms() {
-  return [...new Set(book().cattle.map((animal) => String(animal.farm || "").trim()).filter(Boolean))].sort();
+  const fromBook = [...new Set(book().cattle.map((animal) => String(animal.farm || "").trim()).filter(Boolean))].sort();
+  if (fromBook.length) return fromBook;
+  return view?.placeLists?.farms || [];
 }
 
 function paddocks() {
-  return [...new Set(book().cattle.map((animal) => String(animal.paddock || "").trim()).filter(Boolean))].sort();
+  const fromBook = [...new Set(book().cattle.map((animal) => String(animal.paddock || "").trim()).filter(Boolean))].sort();
+  if (fromBook.length) return fromBook;
+  return view?.placeLists?.paddocks || [];
 }
 
 function places() {
   const current = view?.book;
-  if (!current) return indexPlaces([]);
-  if (current !== placeCacheBook) {
-    placeCacheBook = current;
-    placeCache = indexPlaces(activeAnimals(current));
+  if (current) {
+    if (current !== placeCacheBook) {
+      placeCacheBook = current;
+      placeCache = indexPlaces(activeAnimals(current));
+    }
+    if (placeCache.farms.length || placeCache.paddocks.length) return placeCache;
   }
-  return placeCache;
+  const saved = view?.placeLists;
+  if (saved && (saved.farms?.length || saved.paddocks?.length)) return placesFromSnapshot(saved);
+  return placeCache || indexPlaces([]);
 }
 
 function mothers() {
@@ -181,13 +206,32 @@ function warningBlock() {
   return `<p class="warn">${escapeHtml(view.warning)}</p>`;
 }
 
-function syncBlock() {
+function entryWord(n) {
+  return n === 1 ? "entry" : "entries";
+}
+
+function statusLine() {
   if (!view) return "";
   const offline = view.offline || navigator.onLine === false;
+  const n = view.pending.length;
+  const lines = view.pending.map((item) => `<span class="pending-item">${escapeHtml(item.text)}</span>`).join("");
   if (offline) {
-    const lines = view.pending.map((item) => `<span class="pending-item">${escapeHtml(item.text)}</span>`).join("");
-    return `<div class="sync"><i class="dot off"></i><div><b>No signal</b>${lines || "<span>Notes stay on this phone.</span>"}</div></div>`;
+    return `<div class="sync off-banner" role="status"><i class="dot off"></i><div><b>Offline, ${n} ${entryWord(n)} saved on phone</b>${lines}</div></div>`;
   }
+  if (mode !== "practice" && view.needsSignIn) {
+    const label = n > 0 ? `Sign in to send ${n} saved ${entryWord(n)}` : "Sign in to check the live book";
+    const waiting = n
+      ? `<div class="sync"><i class="dot wait"></i><div><b>Still on this phone. Not sent yet.</b>${lines}</div></div>`
+      : "";
+    return `<button type="button" class="ribbon sign-in-banner" data-action="signin">${escapeHtml(label)}</button>${waiting}`;
+  }
+  return "";
+}
+
+function syncBlock() {
+  if (!view) return "";
+  const status = statusLine();
+  if (status) return status;
   if (view.pending.length) {
     const lines = view.pending.map((item) => `<span class="pending-item">${escapeHtml(item.text)}</span>`).join("");
     const where = mode === "practice" ? "Still on this phone" : "Still on this phone. Not sent yet.";
@@ -295,7 +339,7 @@ function findScreen(params) {
   ]
     .map(([value, label]) => `<button type="button" class="chip${filter === value ? " on" : ""}" data-chip="filter" data-value="${value}">${label}</button>`)
     .join("");
-  return `    <label class="field">Search
+  return `${statusLine()}<label class="field">Search
       <input id="find-q" data-field="q" type="search" inputmode="text" enterkeyhint="search" placeholder="Tag, farm, or paddock" value="${escapeHtml(params.q || "")}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </label>
     ${place.html}
@@ -354,6 +398,7 @@ function calvingScreen(params) {
   const chip = (value, label) =>
     `<button type="button" class="chip${sex === value ? " on" : ""}" data-chip="calfSex" data-value="${value}">${label}</button>`;
   return `<form data-form="calving">
+      ${statusLine()}
       ${formError()}
       ${place.html}
       <label class="field">Mother
@@ -380,6 +425,7 @@ function treatmentScreen(params) {
   const animals = animalsInPlace(sortedActive(), params);
   if (params.id && !animals.some((animal) => animal.id === params.id)) params.id = "";
   return `<form data-form="treatment">
+      ${statusLine()}
       ${formError()}
       ${place.html}
       <label class="field">Animal
@@ -402,6 +448,7 @@ function movementScreen(params) {
   const animal = animalById(params.id);
   const now = animal ? `Now in ${place(animal)}.` : "Choose the animal, then where it is going.";
   return `<form data-form="movement">
+      ${statusLine()}
       ${formError()}
       <label class="field">Animal
         <select name="animalId" required>${animalOptions(params.id)}</select>
@@ -466,14 +513,11 @@ function countScreen(params) {
   const cows = Number(params.cows || 0);
   const calves = Number(params.calves || 0);
   const bulls = Number(params.bulls || 0);
+  const place = placeMenus("count", params);
   return `<form data-form="count">
+      ${statusLine()}
       ${formError()}
-      <label class="field">Farm
-        <input name="farm" data-field="farm" type="text" list="farm-names" autocomplete="off" required value="${escapeHtml(params.farm || "")}">
-      </label>
-      <label class="field">Paddock
-        <input name="paddock" data-field="paddock" type="text" list="paddock-names" autocomplete="off" required value="${escapeHtml(params.paddock || "")}">
-      </label>
+      ${place.html}
       <p class="hint" id="count-hint">${escapeHtml(countHint(params))}</p>
       ${stepper("cows", cows, "Cows")}
       ${stepper("calves", calves, "Calves")}
@@ -486,7 +530,7 @@ function countScreen(params) {
         <input name="note" data-field="note" type="text" maxlength="200" value="${escapeHtml(params.note || "")}">
       </label>
       <button type="submit" class="save">Save count</button>
-    </form>${datalists()}`;
+    </form>`;
 }
 
 function describeClash(clash) {
@@ -530,7 +574,7 @@ function signinScreen() {
   return `<div class="signin">
       <img src="./icons/icon-192.png" alt="">
       <h2>Cattle Logbook</h2>
-      <p>Sign in with the same Microsoft account as the cattle computer. The phone uses the live herd file only.</p>
+      <p>Sign in with the same Microsoft account as the cattle computer. With no signal, the last herd on this phone opens without signing in.</p>
       <button type="button" class="ms" id="sign-in">Sign in with Microsoft</button>
       <p class="hint" style="margin-top:16px"><a href="./setup.html">Setup steps</a></p>
     </div>`;
@@ -645,8 +689,8 @@ async function onSubmit(event) {
       });
     } else if (form.dataset.form === "count") {
       result = await sync.logCount({
-        farm: data.farm,
-        paddock: data.paddock,
+        farm: frame.params.farm,
+        paddock: frame.params.paddock,
         date: data.date,
         cows: Number(frame.params.cows || 0),
         calves: Number(frame.params.calves || 0),
@@ -751,6 +795,10 @@ async function onClash(kind, id) {
 }
 
 async function onAction(action) {
+  if (action === "signin") {
+    await askToSignIn();
+    return;
+  }
   if (!sync || busy) return;
   busy = true;
   const before = view.clashes.length;
@@ -759,6 +807,12 @@ async function onAction(action) {
     if ((view.clashes || []).length > before) {
       toast("One note needs a look.");
       showClash();
+      return;
+    }
+    if (mode !== "practice" && view.needsSignIn) {
+      const n = view.pending.length;
+      toast(n ? `Sign in to send ${n} saved ${entryWord(n)}` : "Sign in to check the live book");
+      paint();
       return;
     }
     toast(view.pending.length ? "Still on this phone." : action === "pull" ? "Checked." : savedMessage(false));
@@ -799,17 +853,113 @@ function onInput(event) {
       }
     }
     if (frame.name === "find") updateFindList();
-    else refreshPlaceAnimals(frame);
+    else if (frame.name === "count") {
+      const hint = document.querySelector("#count-hint");
+      if (hint) hint.textContent = countHint(frame.params);
+    } else refreshPlaceAnimals(frame);
   }
   if (frame.name === "count" && el.dataset?.digits != null) showCountTotal();
-  if (frame.name === "count" && (el.name === "farm" || el.name === "paddock")) {
-    const hint = document.querySelector("#count-hint");
-    if (hint) hint.textContent = countHint(frame.params);
-  }
   if (frame.name === "movement" && el.name === "animalId") {
     const animal = animalById(el.value);
     const now = document.querySelector("#move-now");
     if (now) now.textContent = animal ? `Now in ${place(animal)}.` : "Choose the animal, then where it is going.";
+  }
+}
+
+function hasCachedBook(current = view) {
+  if (!current) return false;
+  if (current.etag) return true;
+  const herd = current.book;
+  if (herd && ((herd.cattle || []).length || (herd.events || []).length || (herd.paddockCounts || []).length)) return true;
+  if ((current.pending || []).length) return true;
+  if ((current.placeLists?.farms || []).length || (current.placeLists?.paddocks || []).length) return true;
+  return false;
+}
+
+function signInWall() {
+  if (navigator.onLine === false) return false;
+  if (hasCachedBook()) return false;
+  return Boolean(view?.needsSignIn);
+}
+
+function reveal() {
+  if (signInWall()) {
+    show("signin", {}, stack.at(-1)?.name === "signin");
+    return;
+  }
+  if (!stack.length || stack.at(-1)?.name === "signin") {
+    goHome();
+    return;
+  }
+  paint();
+}
+
+async function quietToken() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return null;
+  if (!auth || typeof auth.getToken !== "function") return null;
+  try {
+    return await auth.getToken();
+  } catch {
+    return null;
+  }
+}
+
+async function resumeSignIn() {
+  if (signingIn || !sync || mode !== "microsoft") return;
+  if (navigator.onLine === false) return;
+  signingIn = true;
+  try {
+    if (!auth) {
+      try {
+        auth = await createAuth();
+      } catch {
+        auth = null;
+      }
+    }
+    const token = auth ? await auth.getToken() : null;
+    if (!token) {
+      view = { ...sync.view(), needsSignIn: true, offline: false };
+      if (asideNote) view = { ...view, warning: asideNote };
+      reveal();
+      return;
+    }
+    const before = view?.clashes?.length || 0;
+    view = await sync.flush();
+    if (asideNote && !view.warning) view = { ...view, warning: asideNote };
+    if ((view.clashes || []).length > before) showClash();
+    else reveal();
+  } catch (error) {
+    if (view) {
+      view = { ...sync.view(), needsSignIn: true, warning: asideNote || error.message || view.warning };
+      reveal();
+    }
+  } finally {
+    signingIn = false;
+  }
+}
+
+async function askToSignIn() {
+  if (navigator.onLine === false) {
+    toast("No signal. Notes stay on this phone.");
+    return;
+  }
+  try {
+    if (!auth) auth = await createAuth();
+    const token = await auth.getToken();
+    if (token && sync) {
+      const before = view?.clashes?.length || 0;
+      view = await sync.flush();
+      if ((view.clashes || []).length > before) {
+        showClash();
+        return;
+      }
+      toast(view.pending.length ? "Still on this phone." : savedMessage(false));
+      reveal();
+      return;
+    }
+    await auth.signIn();
+  } catch (error) {
+    toast(error.message || "Could not sign in.");
   }
 }
 
@@ -830,32 +980,34 @@ async function boot() {
       return;
     }
     mode = "microsoft";
-    auth = await createAuth();
-    const token = await auth.getToken();
-    if (!token) {
-      show("signin");
-      return;
+    try {
+      const aside = await setAsidePracticeQueue(idbStore("cattle-phone-practice"));
+      if (aside.count) {
+        asideNote = "Notes waiting from the practice book were kept on this phone and were not sent to the live book.";
+      }
+    } catch {
+      asideNote = "";
     }
-    const aside = await setAsidePracticeQueue(idbStore("cattle-phone-practice"));
     const drive = createGraphDrive({
       fetch: window.fetch.bind(window),
-      getToken: () => auth.getToken(),
+      getToken: () => quietToken(),
       path: BOOK_PATH,
     });
     sync = createSync({
       drive,
       store: idbStore("cattle-phone-live"),
-      online: () => navigator.onLine,
+      online: () => navigator.onLine !== false,
     });
     view = await sync.init();
-    if (aside.count) {
-      view = {
-        ...view,
-        warning: "Notes waiting from the practice book were kept on this phone and were not sent to the live book.",
-      };
-    }
-    show("home");
+    if (asideNote) view = { ...view, warning: asideNote };
+    reveal();
+    if (navigator.onLine !== false) void resumeSignIn();
   } catch (error) {
+    if (view && hasCachedBook()) {
+      view = { ...view, warning: error.message || view.warning };
+      reveal();
+      return;
+    }
     main.dataset.screen = "error";
     main.innerHTML = `<div class="screen"><div class="body"><p class="warn">${escapeHtml(error.message || "Could not open the book.")}</p><p class="hint"><a href="./setup.html">Setup steps</a></p></div></div>`;
     subtitleEl.textContent = "Could not open";
@@ -898,17 +1050,21 @@ main.addEventListener("focusout", (event) => {
   if (frame?.name === "count") showCountTotal();
 });
 
-window.addEventListener("online", async () => {
+window.addEventListener("online", () => {
   if (!sync) return;
-  try {
-    const before = view?.clashes?.length || 0;
-    view = await sync.flush();
-    if ((view.clashes || []).length > before) showClash();
-    else paint();
-  } catch (error) {
-    if (view) view.warning = error.message || view.warning;
-    paint();
+  if (mode === "practice") {
+    sync.flush().then((next) => {
+      const before = view?.clashes?.length || 0;
+      view = next;
+      if ((view.clashes || []).length > before) showClash();
+      else paint();
+    }).catch((error) => {
+      if (view) view.warning = error.message || view.warning;
+      paint();
+    });
+    return;
   }
+  void resumeSignIn();
 });
 window.addEventListener("offline", () => {
   if (!view) return;
@@ -916,13 +1072,9 @@ window.addEventListener("offline", () => {
   paint();
 });
 
-document.querySelector("#main").addEventListener("click", async (event) => {
-  if (event.target.id !== "sign-in" || !auth) return;
-  try {
-    await auth.signIn();
-  } catch (error) {
-    toast(error.message || "Microsoft sign-in is not set up yet.");
-  }
+document.querySelector("#main").addEventListener("click", (event) => {
+  if (event.target.id !== "sign-in") return;
+  void askToSignIn();
 });
 
 if ("serviceWorker" in navigator) {
